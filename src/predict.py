@@ -3,7 +3,8 @@ This file contains the Predictor class, which is used to run predictions on the
 Whisper model. It is based on the Predictor class from the original Whisper
 repository, with some modifications to make it work with the RP platform.
 """
-#%%
+
+# %%
 from concurrent.futures import ThreadPoolExecutor
 import torch
 import numpy as np
@@ -12,8 +13,10 @@ from whisper.model import Whisper, ModelDimensions
 from whisper.tokenizer import LANGUAGES
 from whisper.utils import format_timestamp
 
-#%%
+# %%
 import ffmpeg
+
+
 def extract_audio_from_video(outvideo):
     """
     Extract audio from a video file and save it as an MP3 file.
@@ -21,19 +24,19 @@ def extract_audio_from_video(outvideo):
     :param output_video_file: Path to the video file.
     :return: Path to the generated audio file.
     """
-    
-    #if video has valid file extension
+
+    # if video has valid file extension
     file_extensions = [".mp4", ".avi", ".mov", ".mkv", ".webm", ".flv", ".wmv"]
     if not any([outvideo.endswith(ext) for ext in file_extensions]):
         print("Invalid file extension")
         return None
-    
-    #find out video extension 
+
+    # find out video extension
     extension = outvideo.split(".")[-1]
-    
-    #replace the file extension with mp3
-    
-    audiofilename = outvideo.replace('.'+extension, ".mp3")
+
+    # replace the file extension with mp3
+
+    audiofilename = outvideo.replace("." + extension, ".mp3")
 
     # Create the ffmpeg input stream
     input_stream = ffmpeg.input(outvideo)
@@ -52,10 +55,11 @@ def extract_audio_from_video(outvideo):
     return audiofilename
 
 
-#%%
+# %%
+
 
 class Predictor:
-    ''' A Predictor class for the Whisper model '''
+    """A Predictor class for the Whisper model"""
 
     def setup(self):
         """Load the model into memory to make running multiple predictions efficient"""
@@ -63,11 +67,11 @@ class Predictor:
         self.models = {}
 
         def load_model(model_name):
-            '''
+            """
             Load the model from the weights folder.
-            '''
+            """
             try:
-                wights_dir = '/root/app/worker-whisper/weights'
+                wights_dir = os.path.join(os.path.dirname(__file__), "..", "weights")
                 model_file = os.path.join(wights_dir, f"{model_name}.pt")
                 with open(model_file, "rb") as model_file:
                     checkpoint = torch.load(model_file, map_location="cpu")
@@ -84,7 +88,7 @@ class Predictor:
             for model_name, model in executor.map(load_model, model_names):
                 if model_name is not None:
                     self.models[model_name] = model
-                    
+
         print("Models loaded")
 
     def predict(
@@ -158,9 +162,9 @@ class Predictor:
 
 
 def write_vtt(transcript):
-    '''
+    """
     Write the transcript in VTT format.
-    '''
+    """
     result = ""
     for segment in transcript:
         result += f"{format_timestamp(segment['start'])} --> {format_timestamp(segment['end'])}\n"
@@ -170,9 +174,9 @@ def write_vtt(transcript):
 
 
 def write_srt(transcript):
-    '''
+    """
     Write the transcript in SRT format.
-    '''
+    """
     result = ""
     for i, segment in enumerate(transcript, start=1):
         result += f"{i}\n"
@@ -181,12 +185,14 @@ def write_srt(transcript):
         result += f"{segment['text'].strip().replace('-->', '->')}\n"
         result += "\n"
     return result
-#%%
+
+
+# %%
 
 if __name__ == "__main__":
     predictor = Predictor()
     predictor.setup()
-    audio = '/root/app/worker-whisper/assets/F-16 Takes Down Ally Aircraft.mp4'
-    prediction = predictor.predict(audio, model_name = "base" )
+    audio = "/root/app/worker-whisper/assets/F-16 Takes Down Ally Aircraft.mp4"
+    prediction = predictor.predict(audio, model_name="base")
     print(prediction)
 # %%

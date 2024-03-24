@@ -1,5 +1,5 @@
 ''' infer.py for runpod worker '''
-
+#%%
 import os
 import predict
 
@@ -7,11 +7,38 @@ import runpod
 from runpod.serverless.utils.rp_validator import validate
 from runpod.serverless.utils import download_files_from_urls, rp_cleanup
 
+from dotenv import load_dotenv
 from rp_schema import INPUT_VALIDATIONS
-
+import boto3
 MODEL = predict.Predictor()
 MODEL.setup()
+ASSET_DL_PATH = os.path.join(os.path.dirname(__file__), "..", 'assets', "file.mp4")
+if os.path.exists('.env'):
+    load_dotenv()
 
+
+def get_s3_client():
+    '''
+    Get the s3 client.
+    '''
+    s3_client = boto3.client('s3',
+                             aws_access_key_id=os.getenv('AWS_ACCESS_KEY_ID'),
+                             aws_secret_access_key=os.getenv(
+                                 'AWS_SECRET_ACCESS_KEY'),
+                             )
+    return s3_client
+
+def download_file_from_s3(bucket, key, s3_client,  local_path = ASSETS_DIR):
+    '''
+    Download the file from s3.
+    '''
+    local_path_dir = os.path.dirname(local_path)
+    if not os.path.exists(local_path_dir):
+        os.makedirs(local_path_dir, exist_ok=True)
+    s3_client.download_file(bucket, key, local_path)
+    
+    return local_path
+#%%
 
 def run(job):
     '''
@@ -19,6 +46,7 @@ def run(job):
     Returns output path, width the seed used to generate the image.
     '''
     job_input = job['input']
+    s3_client = get_s3_client()
 
     # Setting the float parameters
     job_input['temperature'] = float(job_input.get('temperature', 0))
@@ -30,7 +58,8 @@ def run(job):
     job_input['compression_ratio_threshold'] = float(
         job_input.get('compression_ratio_threshold', 2.4)
     )
-    job_input['logprob_threshold'] = float(job_input.get('logprob_threshold', -1.0))
+    job_input['logprob_threshold'] = float(
+        job_input.get('logprob_threshold', -1.0))
     job_input['no_speech_threshold'] = 0.6
 
     # Input validation
@@ -39,10 +68,12 @@ def run(job):
     if 'errors' in validated_input:
         return {"error": validated_input['errors']}
 
-    job_input['audio'] = download_files_from_urls(job['id'], [job_input['audio']])[0]
+    job_input['video'] = download_file_from_s3(
+        job_input['bucket'], job_input['key'], s3_client)
+    
 
     whisper_results = MODEL.predict(
-        audio=job_input["audio"],
+        audio=job_input["video"],
         model_name=job_input.get("model", 'base'),
         transcription=job_input.get('transcription', 'plain_text'),
         translate=job_input.get('translate', False),
@@ -54,7 +85,8 @@ def run(job):
         length_penalty=job_input["length_penalty"],
         suppress_tokens=job_input.get("suppress_tokens", "-1"),
         initial_prompt=job_input.get('initial_prompt', None),
-        condition_on_previous_text=job_input.get('condition_on_previous_text', True),
+        condition_on_previous_text=job_input.get(
+            'condition_on_previous_text', True),
         temperature_increment_on_fallback=job_input["temperature_increment_on_fallback"],
         compression_ratio_threshold=job_input["compression_ratio_threshold"],
         logprob_threshold=job_input["logprob_threshold"],
