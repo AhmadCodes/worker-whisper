@@ -110,6 +110,7 @@ class Predictor:
         compression_ratio_threshold=2.4,
         logprob_threshold=-1.0,
         no_speech_threshold=0.6,
+        word_timestamps =True
     ):
         audio = extract_audio_from_video(video_file)
         """Run a single prediction on the model"""
@@ -137,6 +138,7 @@ class Predictor:
             "compression_ratio_threshold": compression_ratio_threshold,
             "logprob_threshold": logprob_threshold,
             "no_speech_threshold": no_speech_threshold,
+            "word_timestamps": word_timestamps,
         }
 
         result = model.transcribe(str(audio), temperature=temperature, **args)
@@ -186,13 +188,32 @@ def write_srt(transcript):
         result += "\n"
     return result
 
+#%%
+def extract_segments_from_prediction(prediction):
+
+    wordlevel_info = []
+    for item in prediction['segments']:
+        words = item.get('words', [])
+        for word_info in words:
+            wordlevel_info.append({
+                'word': word_info.get('word', ''),
+                'start': word_info.get('start', 0.0),
+                'end': word_info.get('end', 0.0)
+            })
+
+    transcript = prediction['transcription']
+    return wordlevel_info, transcript
+
 
 # %%
 
 if __name__ == "__main__":
     predictor = Predictor()
     predictor.setup()
-    audio = "/root/app/worker-whisper/assets/F-16 Takes Down Ally Aircraft.mp4"
-    prediction = predictor.predict(audio, model_name="base")
+    assets_folder = os.path.join(os.path.dirname(__file__), "..", "assets")
+    audio = assets_folder + "/file.mp4"
+    prediction = predictor.predict(audio, model_name="base",
+                                   word_timestamps=True,
+                                   transcription="srt")
     print(prediction)
 # %%

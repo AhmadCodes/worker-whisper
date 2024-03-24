@@ -28,7 +28,7 @@ def get_s3_client():
                              )
     return s3_client
 
-def download_file_from_s3(bucket, key, s3_client,  local_path = ASSETS_DIR):
+def download_file_from_s3(bucket, key, s3_client,  local_path = ASSET_DL_PATH):
     '''
     Download the file from s3.
     '''
@@ -38,6 +38,23 @@ def download_file_from_s3(bucket, key, s3_client,  local_path = ASSETS_DIR):
     s3_client.download_file(bucket, key, local_path)
     
     return local_path
+
+def extract_segments_from_prediction(prediction):
+
+    wordlevel_info = []
+    for item in prediction['segments']:
+        words = item.get('words', [])
+        for word_info in words:
+            wordlevel_info.append({
+                'word': word_info.get('word', ''),
+                'start': word_info.get('start', 0.0),
+                'end': word_info.get('end', 0.0)
+            })
+
+    transcript = prediction['transcription']
+    return wordlevel_info, transcript
+
+
 #%%
 
 def run(job):
@@ -73,9 +90,9 @@ def run(job):
     
 
     whisper_results = MODEL.predict(
-        audio=job_input["video"],
+        video_file=job_input["video"],
         model_name=job_input.get("model", 'base'),
-        transcription=job_input.get('transcription', 'plain_text'),
+        transcription=job_input.get('transcription', 'srt'),
         translate=job_input.get('translate', False),
         language=job_input.get('language', None),
         temperature=job_input["temperature"],
@@ -91,11 +108,35 @@ def run(job):
         compression_ratio_threshold=job_input["compression_ratio_threshold"],
         logprob_threshold=job_input["logprob_threshold"],
         no_speech_threshold=job_input["no_speech_threshold"],
+        word_timestamps=True
     )
 
     rp_cleanup.clean(['input_objects'])
+    
+    word_level_info, transcript = extract_segments_from_prediction(whisper_results)
 
-    return whisper_results
+    returns = {
+        "transcript": transcript,
+        "word_level_transcript": word_level_info
+    }
+    
+    return returns
 
+
+#%%
+# test_job = {
+#     "input": {
+#         "bucket": "brollvideo",
+#         "key": "y2mate.bz - How Many Earths Could Fit Inside the Sun_.mp4",
+#         "model": "base",
+#         "transcription": "srt",
+
+#     }
+# }
+
+# res = run(test_job)
+
+#%%
 
 runpod.serverless.start({"handler": run})
+

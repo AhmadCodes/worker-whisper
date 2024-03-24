@@ -1,5 +1,4 @@
 INPUT_VALIDATIONS = {
-    "video": {"type": str, "required": True},
     "bucket": {"type": str, "required": True},
     "key": {"type": str, "required": True},
     "model": {"type": str, "required": False, "default": "base"},
